@@ -15,15 +15,15 @@
  */
 package org.apache.ibatis.cache.decorators;
 
+import org.apache.ibatis.cache.Cache;
+import org.apache.ibatis.logging.Log;
+import org.apache.ibatis.logging.LogFactory;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
-
-import org.apache.ibatis.cache.Cache;
-import org.apache.ibatis.logging.Log;
-import org.apache.ibatis.logging.LogFactory;
 
 /**
  * The 2nd level cache transactional buffer.
@@ -64,15 +64,18 @@ public class TransactionalCache implements Cache {
 
   @Override
   public Object getObject(Object key) {
-    // issue #116
+    // 从缓存集合中获取缓存
     Object object = delegate.getObject(key);
     if (object == null) {
+      // 缓存为空时记录下key，在commit时会将没有命中的缓存，统一设置值为NULL放入缓存集合中
       entriesMissedInCache.add(key);
     }
-    // issue #146
+    // 如果配置了flushCache="true"的选项，这里clearOnCommit值为true
     if (clearOnCommit) {
+      // 不使用缓存值，返回null
       return null;
     } else {
+      // 返回缓存
       return object;
     }
   }
@@ -84,6 +87,7 @@ public class TransactionalCache implements Cache {
 
   @Override
   public void putObject(Object key, Object object) {
+    // 将需要缓存的值方法暂存集合
     entriesToAddOnCommit.put(key, object);
   }
 
@@ -99,15 +103,20 @@ public class TransactionalCache implements Cache {
   }
 
   public void commit() {
+    // 如果配置了flushCache="true"，那么将清空之前的二级缓存。
     if (clearOnCommit) {
       delegate.clear();
     }
+    // 将缓冲区的缓存加入到缓存集合中
     flushPendingEntries();
+    // 重置属性
     reset();
   }
 
   public void rollback() {
+    // 撤销之前没有命中缓存的在缓存集合中的预占位
     unlockMissedEntries();
+    // 重置属性
     reset();
   }
 
@@ -118,9 +127,11 @@ public class TransactionalCache implements Cache {
   }
 
   private void flushPendingEntries() {
+    // 批量将待缓存的值放入缓存集合中
     for (Map.Entry<Object, Object> entry : entriesToAddOnCommit.entrySet()) {
       delegate.putObject(entry.getKey(), entry.getValue());
     }
+    // 没有命中的缓存，通过null预占位的方式也放入缓存集合中
     for (Object entry : entriesMissedInCache) {
       if (!entriesToAddOnCommit.containsKey(entry)) {
         delegate.putObject(entry, null);

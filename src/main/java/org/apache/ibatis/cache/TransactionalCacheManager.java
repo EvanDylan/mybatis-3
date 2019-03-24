@@ -15,16 +15,19 @@
  */
 package org.apache.ibatis.cache;
 
+import org.apache.ibatis.cache.decorators.TransactionalCache;
+
 import java.util.HashMap;
 import java.util.Map;
-
-import org.apache.ibatis.cache.decorators.TransactionalCache;
 
 /**
  * @author Clinton Begin
  */
 public class TransactionalCacheManager {
 
+  /**
+   * 将Cache通过getTransactionalCache()方法的调用，通过装饰器模式创建一个新的TransactionalCache与原来的Cache对应
+   */
   private final Map<Cache, TransactionalCache> transactionalCaches = new HashMap<>();
 
   public void clear(Cache cache) {
