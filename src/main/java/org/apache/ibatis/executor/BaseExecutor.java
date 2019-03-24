@@ -113,7 +113,9 @@ public abstract class BaseExecutor implements Executor {
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
+    // 清空一级缓存、清空存储过程缓存
     clearLocalCache();
+    // 执行DB操作
     return doUpdate(ms, parameter);
   }
 
@@ -143,29 +145,36 @@ public abstract class BaseExecutor implements Executor {
     if (closed) {
       throw new ExecutorException("Executor was closed.");
     }
+    // 如果不是嵌套查询或者嵌套查询执行完毕，并且flushCache配置为true
     if (queryStack == 0 && ms.isFlushCacheRequired()) {
+      // 清空一级缓存
       clearLocalCache();
     }
     List<E> list;
     try {
+      // 本次查询执行查询次数+1
       queryStack++;
       list = resultHandler == null ? (List<E>) localCache.getObject(key) : null;
       if (list != null) {
+        // 处理储存过程，针对OUT的参数设定缓存值
         handleLocallyCachedOutputParameters(ms, key, parameter, boundSql);
       } else {
+        // 没有命中缓存则到数据库中查询
         list = queryFromDatabase(ms, parameter, rowBounds, resultHandler, key, boundSql);
       }
     } finally {
+      // 本次查询执行查询次数-1
       queryStack--;
     }
+    // 查询执行完毕
     if (queryStack == 0) {
       for (DeferredLoad deferredLoad : deferredLoads) {
         deferredLoad.load();
       }
-      // issue #601
       deferredLoads.clear();
+      // 如果本地缓存Scope被配置为STATEMENT，则每次执行的SQL的时候都要清空缓存。
+      // 因为有queryStack == 0的判断，所以查询如果是嵌套查询，缓存还是起作用的。
       if (configuration.getLocalCacheScope() == LocalCacheScope.STATEMENT) {
-        // issue #482
         clearLocalCache();
       }
     }
@@ -319,13 +328,18 @@ public abstract class BaseExecutor implements Executor {
 
   private <E> List<E> queryFromDatabase(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException {
     List<E> list;
+    // 缓存预占位
     localCache.putObject(key, EXECUTION_PLACEHOLDER);
     try {
+      // 执行DB查询操作
       list = doQuery(ms, parameter, rowBounds, resultHandler, boundSql);
     } finally {
+      // 释放预占位
       localCache.removeObject(key);
     }
+    // 放入真正的缓存
     localCache.putObject(key, list);
+    // 如果是存储过程的调用则将储存过程的执行的结果保存至localOutputParameterCache中
     if (ms.getStatementType() == StatementType.CALLABLE) {
       localOutputParameterCache.putObject(key, parameter);
     }
