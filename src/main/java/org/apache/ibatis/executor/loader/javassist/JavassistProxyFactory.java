@@ -131,13 +131,18 @@ public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.
       final String methodName = method.getName();
       try {
         synchronized (lazyLoader) {
+          // 序列化时
           if (WRITE_REPLACE_METHOD.equals(methodName)) {
+            // 未被代理的属性对象
             Object original;
+            // 构造方法参数为空
             if (constructorArgTypes.isEmpty()) {
               original = objectFactory.create(type);
+              // 不为空
             } else {
               original = objectFactory.create(type, constructorArgTypes, constructorArgs);
             }
+            // 将代理对象的属性copy到原对象中
             PropertyCopier.copyBeanProperties(type, enhanced, original);
             if (lazyLoader.size() > 0) {
               return new JavassistSerialStateHolder(original, lazyLoader.getProperties(), objectFactory, constructorArgTypes, constructorArgs);
@@ -145,21 +150,29 @@ public class JavassistProxyFactory implements org.apache.ibatis.executor.loader.
               return original;
             }
           } else {
+            // 如果存在懒加载属性并且调用方式不是finalize
             if (lazyLoader.size() > 0 && !FINALIZE_METHOD.equals(methodName)) {
+              // 如果设置aggressiveLazyLoading=true或者调用方法为(equals,clone,hashCode,toString)中的一种
               if (aggressive || lazyLoadTriggerMethods.contains(methodName)) {
+                // 全部加载
                 lazyLoader.loadAll();
+                // 如果是set方法
               } else if (PropertyNamer.isSetter(methodName)) {
                 final String property = PropertyNamer.methodToProperty(methodName);
+                // 移除对应属性的懒加载
                 lazyLoader.remove(property);
+                // 如果是get方法
               } else if (PropertyNamer.isGetter(methodName)) {
                 final String property = PropertyNamer.methodToProperty(methodName);
                 if (lazyLoader.hasLoader(property)) {
+                  // 执行懒加载
                   lazyLoader.load(property);
                 }
               }
             }
           }
         }
+        // 执行正常调用
         return methodProxy.invoke(enhanced, args);
       } catch (Throwable t) {
         throw ExceptionUtil.unwrapThrowable(t);
