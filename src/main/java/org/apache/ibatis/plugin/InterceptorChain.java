@@ -24,10 +24,14 @@ import java.util.List;
  */
 public class InterceptorChain {
 
+  /**
+   * 保存了所有的插件
+   */
   private final List<Interceptor> interceptors = new ArrayList<>();
 
   public Object pluginAll(Object target) {
     for (Interceptor interceptor : interceptors) {
+      // 调用interceptor的plugin对原对象增强,从这里也验证了JDK代理是可以再次被代理的
       target = interceptor.plugin(target);
     }
     return target;
@@ -40,5 +44,4 @@ public class InterceptorChain {
   public List<Interceptor> getInterceptors() {
     return Collections.unmodifiableList(interceptors);
   }
-
 }
