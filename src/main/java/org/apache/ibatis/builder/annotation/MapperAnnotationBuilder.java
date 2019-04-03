@@ -125,24 +125,36 @@ public class MapperAnnotationBuilder {
 
   public void parse() {
     String resource = type.toString();
+    // 没有被加载过
     if (!configuration.isResourceLoaded(resource)) {
+      // 在当前类路径下查找对应的的XML配置文件
       loadXmlResource();
+      // 将当前类添加到loadedResources集合中,标志当前类已经被加载
       configuration.addLoadedResource(resource);
+      // 设置namespace
       assistant.setCurrentNamespace(type.getName());
+      // 解析CacheNamespace注解
       parseCache();
+      // 解析CacheNamespaceRef注解
+      // 请注意parseCacheRef如果有配置,将会覆盖CacheNamespace的缓存配置
       parseCacheRef();
+      // 解析接口中方法
       Method[] methods = type.getMethods();
       for (Method method : methods) {
         try {
           // issue #237
           if (!method.isBridge()) {
+            // 解析方法
             parseStatement(method);
           }
         } catch (IncompleteElementException e) {
+          // 如果当前mapper中引用了其他的mapper中的内容，但是被引用的mapper还没有被加载则会抛出异常
           configuration.addIncompleteMethod(new MethodResolver(this, method));
         }
       }
     }
+    // 每次进来一个新的mapper,都会将上面因为引用其他mapper,而其他的mapper还没有来及被加载导致而导致解析失败的内容重新执行
+    // 最终全部加载完毕时,所有的mapper也都会被完整的装配完毕
     parsePendingMethods();
   }
 
@@ -166,6 +178,8 @@ public class MapperAnnotationBuilder {
     // to prevent loading again a resource twice
     // this flag is set at XMLMapperBuilder#bindMapperForNamespace
     if (!configuration.isResourceLoaded("namespace:" + type.getName())) {
+      // 假设传入的mapper类路径是org.rhine.mapper.UserMapper
+      // 那么将会在org/rhine/mapper包路径下查找UserMapper.xml的配置文件
       String xmlResource = type.getName().replace('.', '/') + ".xml";
       // #1347
       InputStream inputStream = type.getResourceAsStream("/" + xmlResource);
@@ -297,10 +311,14 @@ public class MapperAnnotationBuilder {
   }
 
   void parseStatement(Method method) {
+    // 解析方法的参数类型,若果是多个参数解析为Map
     Class<?> parameterTypeClass = getParameterType(method);
+    // 解析SQL语句使用的模板引擎,默认使用XMLLanguageDriver
     LanguageDriver languageDriver = getLanguageDriver(method);
+    // 解析注解中的SQL语句
     SqlSource sqlSource = getSqlSourceFromAnnotations(method, parameterTypeClass, languageDriver);
     if (sqlSource != null) {
+      // 可选项配置信息
       Options options = method.getAnnotation(Options.class);
       final String mappedStatementId = type.getName() + "." + method.getName();
       Integer fetchSize = null;
